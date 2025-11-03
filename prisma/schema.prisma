@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum OperationType {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  CUSTOM
+}
+
+model DataStorageModel {
+  id            String               @id @default(cuid())
+  name          String
+  description   String?
+  database      String
+  connection    String?
+  schema        Json?
+  tables        DataStorageTable[]
+  operations    DataOperationModel[]
+  views         DataViewModel[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+model DataStorageTable {
+  id               String             @id @default(cuid())
+  storageModelId   String
+  name             String
+  description      String?
+  schema           Json?
+  storageModel     DataStorageModel   @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
+  views            DataViewModel[]
+  forms            DataFormModel[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model DataViewModel {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  storageModelId   String
+  storageTableId   String
+  layout           Json
+  storageModel     DataStorageModel   @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
+  storageTable     DataStorageTable   @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model DataFormModel {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  storageTableId   String
+  schema           Json
+  storageTable     DataStorageTable   @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
+  operations       DataOperationModel[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model DataOperationModel {
+  id               String             @id @default(cuid())
+  name             String
+  description      String?
+  type             OperationType      @default(READ)
+  endpoint         String?
+  method           String?
+  storageModelId   String?
+  formModelId      String?
+  requestSchema    Json?
+  responseSchema   Json?
+  storageModel     DataStorageModel?  @relation(fields: [storageModelId], references: [id], onDelete: SetNull)
+  formModel        DataFormModel?     @relation(fields: [formModelId], references: [id], onDelete: SetNull)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
