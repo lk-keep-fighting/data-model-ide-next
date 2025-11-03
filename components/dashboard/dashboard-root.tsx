@@ -78,8 +78,8 @@ type OperationDesignerState = {
   name: string;
   description: string;
   type: OperationModel["type"];
-  formModelId: string;
-  storageModelId: string;
+  formModelId: string | null;
+  storageModelId: string | null;
   endpoint: string;
   method: string;
   requestSchema: string;
@@ -116,8 +116,8 @@ const DEFAULT_OPERATION_STATE: OperationDesignerState = {
   name: "",
   description: "",
   type: "READ",
-  formModelId: "",
-  storageModelId: "",
+  formModelId: null,
+  storageModelId: null,
   endpoint: "",
   method: "GET",
   requestSchema: "",
@@ -132,6 +132,8 @@ const OPERATION_TYPES: OperationModel["type"][] = [
   "DELETE",
   "CUSTOM"
 ];
+
+const SELECT_EMPTY_VALUE = "__none__";
 
 const FIELD_COMPONENT_OPTIONS = [
   { value: "text", label: "文本输入" },
@@ -538,7 +540,7 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
   );
 
   const handleSyncRequestSchema = useCallback(
-    (formModelId: string) => {
+    (formModelId: string | null) => {
       if (!formModelId) return;
       const targetForm = formModels.find((item) => item.id === formModelId);
       if (!targetForm) return;
@@ -1307,7 +1309,7 @@ interface OperationModelsTabProps {
   state: OperationDesignerState;
   setState: Dispatch<SetStateAction<OperationDesignerState>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  onSyncRequestSchema: (formModelId: string) => void;
+  onSyncRequestSchema: (formModelId: string | null) => void;
   isSubmitting: boolean;
 }
 
@@ -1406,14 +1408,19 @@ function OperationModelsTab({
             <div className="space-y-2">
               <Label>关联数据存储模型</Label>
               <Select
-                value={state.storageModelId}
-                onValueChange={(value) => setState({ ...state, storageModelId: value })}
+                value={state.storageModelId ?? SELECT_EMPTY_VALUE}
+                onValueChange={(value) =>
+                  setState({
+                    ...state,
+                    storageModelId: value === SELECT_EMPTY_VALUE ? null : value
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="可选：关联数据存储模型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">不关联</SelectItem>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>不关联</SelectItem>
                   {storageModels.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       {model.name}
@@ -1425,19 +1432,18 @@ function OperationModelsTab({
             <div className="space-y-2">
               <Label>绑定表单模型</Label>
               <Select
-                value={state.formModelId}
+                value={state.formModelId ?? SELECT_EMPTY_VALUE}
                 onValueChange={(value) => {
-                  setState({ ...state, formModelId: value });
-                  if (value) {
-                    onSyncRequestSchema(value);
-                  }
+                  const resolved = value === SELECT_EMPTY_VALUE ? null : value;
+                  setState({ ...state, formModelId: resolved });
+                  onSyncRequestSchema(resolved);
                 }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="可选：绑定表单模型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">不绑定</SelectItem>
+                  <SelectItem value={SELECT_EMPTY_VALUE}>不绑定</SelectItem>
                   {formModels.map((form) => (
                     <SelectItem key={form.id} value={form.id}>
                       {form.name}
