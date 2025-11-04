@@ -152,9 +152,25 @@ function extractColumns(table?: StorageTable | null): ColumnMeta[] {
   return [];
 }
 
+const DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Shanghai"
+});
+
 function formatDate(value: string) {
   try {
-    return new Date(value).toLocaleString();
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return DATE_FORMATTER.format(date);
   } catch (error) {
     return value;
   }
