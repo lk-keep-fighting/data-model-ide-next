@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DashboardData,
+  DomainModel,
   FormModel,
   OperationModel,
   StorageModel,
@@ -86,6 +87,38 @@ type OperationDesignerState = {
   responseSchema: string;
 };
 
+type DomainFieldDraft = {
+  id: string;
+  key: string;
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+};
+
+type DomainDesignerState = {
+  name: string;
+  description: string;
+  fields: DomainFieldDraft[];
+  storageTableSelections: Record<string, boolean>;
+  viewSelections: Record<string, boolean>;
+  formSelections: Record<string, boolean>;
+  operationSelections: Record<string, boolean>;
+};
+
+type DomainSelectionKey = keyof Pick<
+  DomainDesignerState,
+  "storageTableSelections" | "viewSelections" | "formSelections" | "operationSelections"
+>;
+
+type DomainFieldPayload = {
+  key: string;
+  name: string;
+  type?: string;
+  required: boolean;
+  description?: string;
+};
+
 const DEFAULT_STORAGE_FORM: StorageImportFormState = {
   name: "",
   description: "",
@@ -123,6 +156,29 @@ const DEFAULT_OPERATION_STATE: OperationDesignerState = {
   requestSchema: "",
   responseSchema: ""
 };
+
+function createDomainFieldDraft(): DomainFieldDraft {
+  return {
+    id: Math.random().toString(36).slice(2),
+    key: "",
+    name: "",
+    type: "",
+    required: false,
+    description: ""
+  };
+}
+
+function createDefaultDomainState(): DomainDesignerState {
+  return {
+    name: "",
+    description: "",
+    fields: [createDomainFieldDraft()],
+    storageTableSelections: {},
+    viewSelections: {},
+    formSelections: {},
+    operationSelections: {}
+  };
+}
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const OPERATION_TYPES: OperationModel["type"][] = [
@@ -197,6 +253,7 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
   const [operationModels, setOperationModels] = useState<OperationModel[]>(
     initialData.operationModels
   );
+  const [domainModels, setDomainModels] = useState<DomainModel[]>(initialData.domainModels);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [storageForm, setStorageForm] = useState<StorageImportFormState>(
@@ -225,9 +282,13 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
   const [operationState, setOperationState] = useState<OperationDesignerState>(
     DEFAULT_OPERATION_STATE
   );
+  const [domainState, setDomainState] = useState<DomainDesignerState>(() =>
+    createDefaultDomainState()
+  );
   const [isCreatingView, setIsCreatingView] = useState(false);
   const [isCreatingForm, setIsCreatingForm] = useState(false);
   const [isCreatingOperation, setIsCreatingOperation] = useState(false);
+  const [isCreatingDomain, setIsCreatingDomain] = useState(false);
 
   const selectedViewStorage = useMemo(
     () => storageModels.find((model) => model.id === viewState.storageModelId),
@@ -291,6 +352,7 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
       setViewModels(payload.viewModels);
       setFormModels(payload.formModels);
       setOperationModels(payload.operationModels);
+      setDomainModels(payload.domainModels);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "刷新失败");
     } finally {
@@ -571,6 +633,129 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
     [formModels]
   );
 
+  const handleAddDomainField = useCallback(() => {
+    setDomainState((prev) => ({
+      ...prev,
+      fields: [...prev.fields, createDomainFieldDraft()]
+    }));
+  }, []);
+
+  const handleUpdateDomainField = useCallback(
+    (fieldId: string, partial: Partial<DomainFieldDraft>) => {
+      setDomainState((prev) => ({
+        ...prev,
+        fields: prev.fields.map((field) =>
+          field.id === fieldId ? { ...field, ...partial } : field
+        )
+      }));
+    },
+    []
+  );
+
+  const handleRemoveDomainField = useCallback((fieldId: string) => {
+    setDomainState((prev) => ({
+      ...prev,
+      fields: prev.fields.filter((field) => field.id !== fieldId)
+    }));
+  }, []);
+
+  const handleToggleDomainSelection = useCallback(
+    (key: DomainSelectionKey, id: string, checked: boolean) => {
+      setDomainState((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          [id]: checked
+        }
+      }));
+    },
+    []
+  );
+
+  const handleCreateDomain = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (!domainState.name.trim()) {
+        toast.error("请填写领域名称");
+        return;
+      }
+
+      const normalizedFields = domainState.fields
+        .map<DomainFieldPayload | null>((field) => {
+          const key = field.key.trim();
+          const name = field.name.trim();
+          if (!key || !name) {
+            return null;
+          }
+          const type = field.type.trim();
+          const description = field.description.trim();
+
+          return {
+            key,
+            name,
+            type: type || undefined,
+            required: field.required,
+            description: description ? description : undefined
+          };
+        })
+        .filter((field): field is DomainFieldPayload => field !== null);
+
+      if (!normalizedFields.length) {
+        toast.error("请至少定义一个有效的业务字段");
+        return;
+      }
+
+      const storageTableIds = Object.entries(domainState.storageTableSelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+      const viewModelIds = Object.entries(domainState.viewSelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+      const formModelIds = Object.entries(domainState.formSelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+      const operationModelIds = Object.entries(domainState.operationSelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+
+      setIsCreatingDomain(true);
+      try {
+        const response = await fetch("/api/domain-models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: domainState.name.trim(),
+            description: domainState.description.trim()
+              ? domainState.description.trim()
+              : undefined,
+            schema: {
+              fields: normalizedFields
+            },
+            storageTableIds,
+            viewModelIds,
+            formModelIds,
+            operationModelIds
+          })
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || "创建领域模型失败");
+        }
+
+        toast.success("业务领域模型创建成功");
+        setDomainState(createDefaultDomainState());
+        await refreshData();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "创建失败");
+      } finally {
+        setIsCreatingDomain(false);
+      }
+    },
+    [domainState, refreshData]
+  );
+
   return (
     <Tabs defaultValue="storage" className="w-full">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -579,6 +764,7 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
           <TabsTrigger value="view">数据展示视图</TabsTrigger>
           <TabsTrigger value="form">数据提交表单</TabsTrigger>
           <TabsTrigger value="operation">数据操作模型</TabsTrigger>
+          <TabsTrigger value="domain">业务领域模型</TabsTrigger>
         </TabsList>
         <Button variant="outline" onClick={refreshData} disabled={isRefreshing}>
           {isRefreshing ? "刷新中..." : "刷新数据"}
@@ -631,6 +817,24 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
           onSubmit={handleCreateOperation}
           onSyncRequestSchema={handleSyncRequestSchema}
           isSubmitting={isCreatingOperation}
+        />
+      </TabsContent>
+
+      <TabsContent value="domain" className="space-y-6">
+        <DomainModelsTab
+          storageModels={storageModels}
+          viewModels={viewModels}
+          formModels={formModels}
+          operationModels={operationModels}
+          domainModels={domainModels}
+          state={domainState}
+          setState={setDomainState}
+          onAddField={handleAddDomainField}
+          onUpdateField={handleUpdateDomainField}
+          onRemoveField={handleRemoveDomainField}
+          onToggleSelection={handleToggleDomainSelection}
+          onSubmit={handleCreateDomain}
+          isSubmitting={isCreatingDomain}
         />
       </TabsContent>
     </Tabs>
@@ -1559,6 +1763,390 @@ function OperationModelsTab({
                     </pre>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface DomainModelsTabProps {
+  storageModels: StorageModel[];
+  viewModels: ViewModel[];
+  formModels: FormModel[];
+  operationModels: OperationModel[];
+  domainModels: DomainModel[];
+  state: DomainDesignerState;
+  setState: Dispatch<SetStateAction<DomainDesignerState>>;
+  onAddField: () => void;
+  onUpdateField: (fieldId: string, partial: Partial<DomainFieldDraft>) => void;
+  onRemoveField: (fieldId: string) => void;
+  onToggleSelection: (key: DomainSelectionKey, id: string, value: boolean) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  isSubmitting: boolean;
+}
+
+function DomainModelsTab({
+  storageModels,
+  viewModels,
+  formModels,
+  operationModels,
+  domainModels,
+  state,
+  setState,
+  onAddField,
+  onUpdateField,
+  onRemoveField,
+  onToggleSelection,
+  onSubmit,
+  isSubmitting
+}: DomainModelsTabProps) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[360px,1fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>构建业务领域</CardTitle>
+          <CardDescription>
+            通过定义业务字段并关联已有模型，形成面向业务的领域描述。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={onSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="domain-name">领域名称</Label>
+              <Input
+                id="domain-name"
+                placeholder="例如：用户管理领域"
+                value={state.name}
+                onChange={(event) =>
+                  setState((prev) => ({ ...prev, name: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="domain-desc">领域说明</Label>
+              <Textarea
+                id="domain-desc"
+                placeholder="用于描述业务背景、目标与边界"
+                value={state.description}
+                onChange={(event) =>
+                  setState((prev) => ({ ...prev, description: event.target.value }))
+                }
+                rows={3}
+              />
+            </div>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>业务字段</Label>
+                <Button type="button" variant="secondary" size="sm" onClick={onAddField}>
+                  新增字段
+                </Button>
+              </div>
+              {state.fields.length === 0 ? (
+                <p className="text-sm text-muted-foreground">请先新增业务字段</p>
+              ) : (
+                <div className="space-y-3">
+                  {state.fields.map((field, index) => (
+                    <div key={field.id} className="space-y-3 rounded-lg border p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">字段 {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRemoveField(field.id)}
+                          disabled={state.fields.length === 1}
+                        >
+                          移除
+                        </Button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">字段编码</Label>
+                          <Input
+                            value={field.key}
+                            placeholder="唯一标识，如 userName"
+                            onChange={(event) => onUpdateField(field.id, { key: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">字段名称</Label>
+                          <Input
+                            value={field.name}
+                            placeholder="展示名称，如 用户名称"
+                            onChange={(event) => onUpdateField(field.id, { name: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">数据类型</Label>
+                          <Input
+                            value={field.type}
+                            placeholder="可选：string、number 等"
+                            onChange={(event) => onUpdateField(field.id, { type: event.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <Label className="text-xs">字段说明</Label>
+                          <Textarea
+                            value={field.description}
+                            placeholder="可选：补充字段含义、校验要求"
+                            onChange={(event) =>
+                              onUpdateField(field.id, { description: event.target.value })
+                            }
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={field.required}
+                          onChange={(event) =>
+                            onUpdateField(field.id, { required: event.target.checked })
+                          }
+                        />
+                        <span>标记为必填字段</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label>关联数据表</Label>
+              {storageModels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">暂无数据存储模型</p>
+              ) : (
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                  {storageModels.map((model) => (
+                    <div key={model.id} className="rounded-md border p-3">
+                      <div className="text-sm font-medium">{model.name}</div>
+                      <div className="mt-2 space-y-2">
+                        {model.tables.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">暂无数据表</p>
+                        ) : (
+                          model.tables.map((table) => (
+                            <label key={table.id} className="flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={Boolean(state.storageTableSelections[table.id])}
+                                onChange={(event) =>
+                                  onToggleSelection(
+                                    "storageTableSelections",
+                                    table.id,
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              <span>{table.name}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>关联视图 / 表格</Label>
+              {viewModels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">暂无数据视图</p>
+              ) : (
+                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  {viewModels.map((view) => (
+                    <label key={view.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={Boolean(state.viewSelections[view.id])}
+                        onChange={(event) =>
+                          onToggleSelection("viewSelections", view.id, event.target.checked)
+                        }
+                      />
+                      <span>{view.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>关联表单模型</Label>
+              {formModels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">暂无表单模型</p>
+              ) : (
+                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  {formModels.map((form) => (
+                    <label key={form.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={Boolean(state.formSelections[form.id])}
+                        onChange={(event) =>
+                          onToggleSelection("formSelections", form.id, event.target.checked)
+                        }
+                      />
+                      <span>{form.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>关联操作模型</Label>
+              {operationModels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">暂无操作模型</p>
+              ) : (
+                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  {operationModels.map((operation) => (
+                    <label key={operation.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={Boolean(state.operationSelections[operation.id])}
+                        onChange={(event) =>
+                          onToggleSelection(
+                            "operationSelections",
+                            operation.id,
+                            event.target.checked
+                          )
+                        }
+                      />
+                      <span>
+                        {operation.name}
+                        <span className="ml-2 text-xs text-muted-foreground">{operation.type}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "创建中..." : "创建领域模型"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <div className="space-y-4">
+        {domainModels.length === 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>暂无业务领域模型</CardTitle>
+              <CardDescription>创建领域模型以统一描述字段、表单、视图与操作。</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          domainModels.map((domain) => (
+            <Card key={domain.id}>
+              <CardHeader className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle>{domain.name}</CardTitle>
+                  {domain.description ? (
+                    <CardDescription>{domain.description}</CardDescription>
+                  ) : null}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  更新于：{formatDate(domain.updatedAt)}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                  <span>业务字段：{domain.fields.length} 个</span>
+                  <span>数据表：{domain.storageTables.length} 个</span>
+                  <span>表单：{domain.formModels.length} 个</span>
+                  <span>视图：{domain.viewModels.length} 个</span>
+                  <span>操作：{domain.operationModels.length} 个</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium">字段定义</div>
+                  <div className="mt-2 rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>字段编码</TableHead>
+                          <TableHead>字段名称</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>必填</TableHead>
+                          <TableHead>描述</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {domain.fields.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                              尚未配置业务字段
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          domain.fields.map((field) => (
+                            <TableRow key={field.key}>
+                              <TableCell>{field.key}</TableCell>
+                              <TableCell>{field.name}</TableCell>
+                              <TableCell>{field.type || "--"}</TableCell>
+                              <TableCell>{field.required ? "是" : "否"}</TableCell>
+                              <TableCell>{field.description ?? "--"}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                {domain.storageTables.length ? (
+                  <div>
+                    <div className="text-sm font-medium">关联数据表</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {domain.storageTables.map((table) => (
+                        <Badge key={table.id} variant="outline">
+                          {table.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {domain.viewModels.length ? (
+                  <div>
+                    <div className="text-sm font-medium">关联视图</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {domain.viewModels.map((view) => (
+                        <Badge key={view.id} variant="outline">
+                          {view.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {domain.formModels.length ? (
+                  <div>
+                    <div className="text-sm font-medium">关联表单</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {domain.formModels.map((form) => (
+                        <Badge key={form.id} variant="outline">
+                          {form.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {domain.operationModels.length ? (
+                  <div>
+                    <div className="text-sm font-medium">关联操作</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {domain.operationModels.map((operation) => (
+                        <Badge key={operation.id} variant="secondary">
+                          {operation.name}
+                          <span className="ml-1 text-[10px] uppercase">{operation.type}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ))

@@ -30,56 +30,113 @@ model DataStorageModel {
 }
 
 model DataStorageTable {
-  id               String             @id @default(cuid())
+  id               String                       @id @default(cuid())
   storageModelId   String
   name             String
   description      String?
   schema           Json?
-  storageModel     DataStorageModel   @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
+  storageModel     DataStorageModel             @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
   views            DataViewModel[]
   forms            DataFormModel[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  domainModels     DataDomainModelStorageTable[]
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
 }
 
 model DataViewModel {
-  id               String             @id @default(cuid())
+  id               String                     @id @default(cuid())
   name             String
   description      String?
   storageModelId   String
   storageTableId   String
   layout           Json
-  storageModel     DataStorageModel   @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
-  storageTable     DataStorageTable   @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  storageModel     DataStorageModel           @relation(fields: [storageModelId], references: [id], onDelete: Cascade)
+  storageTable     DataStorageTable           @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
+  domainModels     DataDomainModelViewModel[]
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
 }
 
 model DataFormModel {
-  id               String             @id @default(cuid())
+  id               String                    @id @default(cuid())
   name             String
   description      String?
   storageTableId   String
   schema           Json
-  storageTable     DataStorageTable   @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
+  storageTable     DataStorageTable          @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
   operations       DataOperationModel[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  domainModels     DataDomainModelFormModel[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
 }
 
 model DataOperationModel {
-  id               String             @id @default(cuid())
+  id               String                          @id @default(cuid())
   name             String
   description      String?
-  type             OperationType      @default(READ)
+  type             OperationType                   @default(READ)
   endpoint         String?
   method           String?
   storageModelId   String?
   formModelId      String?
   requestSchema    Json?
   responseSchema   Json?
-  storageModel     DataStorageModel?  @relation(fields: [storageModelId], references: [id], onDelete: SetNull)
-  formModel        DataFormModel?     @relation(fields: [formModelId], references: [id], onDelete: SetNull)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  storageModel     DataStorageModel?               @relation(fields: [storageModelId], references: [id], onDelete: SetNull)
+  formModel        DataFormModel?                  @relation(fields: [formModelId], references: [id], onDelete: SetNull)
+  domainModels     DataDomainModelOperationModel[]
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+}
+
+model DataDomainModel {
+  id               String                        @id @default(cuid())
+  name             String
+  description      String?
+  schema           Json?
+  storageTables    DataDomainModelStorageTable[]
+  viewModels       DataDomainModelViewModel[]
+  formModels       DataDomainModelFormModel[]
+  operationModels  DataDomainModelOperationModel[]
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+}
+
+model DataDomainModelStorageTable {
+  domainModelId   String
+  storageTableId  String
+  domainModel     DataDomainModel    @relation(fields: [domainModelId], references: [id], onDelete: Cascade)
+  storageTable    DataStorageTable   @relation(fields: [storageTableId], references: [id], onDelete: Cascade)
+  createdAt       DateTime           @default(now())
+
+  @@id([domainModelId, storageTableId])
+}
+
+model DataDomainModelViewModel {
+  domainModelId   String
+  viewModelId     String
+  domainModel     DataDomainModel  @relation(fields: [domainModelId], references: [id], onDelete: Cascade)
+  viewModel       DataViewModel    @relation(fields: [viewModelId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+
+  @@id([domainModelId, viewModelId])
+}
+
+model DataDomainModelFormModel {
+  domainModelId   String
+  formModelId     String
+  domainModel     DataDomainModel  @relation(fields: [domainModelId], references: [id], onDelete: Cascade)
+  formModel       DataFormModel    @relation(fields: [formModelId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+
+  @@id([domainModelId, formModelId])
+}
+
+model DataDomainModelOperationModel {
+  domainModelId     String
+  operationModelId  String
+  domainModel       DataDomainModel     @relation(fields: [domainModelId], references: [id], onDelete: Cascade)
+  operationModel    DataOperationModel  @relation(fields: [operationModelId], references: [id], onDelete: Cascade)
+  createdAt         DateTime            @default(now())
+
+  @@id([domainModelId, operationModelId])
 }

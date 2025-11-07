@@ -31,7 +31,8 @@ export async function GET() {
     storageModels,
     viewModels: [],
     formModels: [],
-    operationModels: []
+    operationModels: [],
+    domainModels: []
   });
 
   return NextResponse.json(payload.storageModels);

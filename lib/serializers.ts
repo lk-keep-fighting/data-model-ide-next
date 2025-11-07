@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import {
   DashboardData,
+  DomainField,
+  DomainModel,
   FormModel,
   OperationModel,
   StorageModel,
@@ -51,6 +53,55 @@ export type OperationModelWithRelations = Prisma.DataOperationModelGetPayload<{
   include: {
     formModel: true;
     storageModel: true;
+  };
+}>;
+
+export type DomainModelWithRelations = Prisma.DataDomainModelGetPayload<{
+  include: {
+    storageTables: {
+      include: {
+        storageTable: {
+          include: {
+            forms: {
+              include: {
+                operations: true;
+              };
+            };
+            views: true;
+          };
+        };
+      };
+    };
+    viewModels: {
+      include: {
+        viewModel: {
+          include: {
+            storageModel: true;
+            storageTable: true;
+          };
+        };
+      };
+    };
+    formModels: {
+      include: {
+        formModel: {
+          include: {
+            storageTable: true;
+            operations: true;
+          };
+        };
+      };
+    };
+    operationModels: {
+      include: {
+        operationModel: {
+          include: {
+            formModel: true;
+            storageModel: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -198,11 +249,98 @@ function toStorageModel(model: StorageModelWithRelations): StorageModel {
   };
 }
 
+function toDomainFields(schema: unknown): DomainField[] {
+  if (!schema || typeof schema !== "object") {
+    return [];
+  }
+
+  const { fields } = schema as { fields?: unknown };
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+
+  return fields
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const record = item as Record<string, unknown>;
+      const key = typeof record.key === "string" ? record.key : typeof record.column === "string" ? record.column : "";
+      const name =
+        typeof record.name === "string"
+          ? record.name
+          : typeof record.label === "string"
+            ? record.label
+            : "";
+
+      if (!key || !name) {
+        return null;
+      }
+
+      const type =
+        typeof record.type === "string"
+          ? record.type
+          : typeof record.dataType === "string"
+            ? record.dataType
+            : undefined;
+      const required = typeof record.required === "boolean" ? record.required : undefined;
+      const description =
+        typeof record.description === "string"
+          ? record.description
+          : record.description === null
+            ? null
+            : undefined;
+
+      return {
+        key,
+        name,
+        type,
+        required,
+        description
+      } as DomainField;
+    })
+    .filter((field): field is DomainField => field !== null);
+}
+
+function toDomainModel(model: DomainModelWithRelations): DomainModel {
+  const fields = toDomainFields(model.schema);
+  const schema = model.schema ? { fields } : null;
+
+  return {
+    id: model.id,
+    name: model.name,
+    description: model.description,
+    schema,
+    fields,
+    storageTables: model.storageTables.map((item) =>
+      toStorageTable(
+        item.storageTable as unknown as StorageModelWithRelations["tables"][number]
+      )
+    ),
+    viewModels: model.viewModels.map((item) =>
+      toViewModel(item.viewModel as unknown as ViewModelWithRelations)
+    ),
+    formModels: model.formModels.map((item) =>
+      toFormModel(item.formModel as unknown as FormModelWithRelations, {
+        includeOperations: true
+      })
+    ),
+    operationModels: model.operationModels.map((item) =>
+      toOperationModel(item.operationModel as unknown as OperationModelWithRelations, {
+        includeForm: true
+      })
+    ),
+    createdAt: model.createdAt.toISOString(),
+    updatedAt: model.updatedAt.toISOString()
+  };
+}
+
 export function serializeDashboardData(params: {
   storageModels: StorageModelWithRelations[];
   viewModels: ViewModelWithRelations[];
   formModels: FormModelWithRelations[];
   operationModels: OperationModelWithRelations[];
+  domainModels: DomainModelWithRelations[];
 }): DashboardData {
   return {
     storageModels: params.storageModels.map(toStorageModel),
@@ -212,6 +350,7 @@ export function serializeDashboardData(params: {
     ),
     operationModels: params.operationModels.map((operation) =>
       toOperationModel(operation, { includeForm: true })
-    )
+    ),
+    domainModels: params.domainModels.map(toDomainModel)
   };
 }

@@ -2,8 +2,55 @@ import DashboardRoot from "@/components/dashboard/dashboard-root";
 import { serializeDashboardData } from "@/lib/serializers";
 import { prisma } from "@/lib/prisma";
 
+const domainModelInclude = {
+  storageTables: {
+    include: {
+      storageTable: {
+        include: {
+          forms: {
+            include: {
+              operations: true
+            }
+          },
+          views: true
+        }
+      }
+    }
+  },
+  viewModels: {
+    include: {
+      viewModel: {
+        include: {
+          storageModel: true,
+          storageTable: true
+        }
+      }
+    }
+  },
+  formModels: {
+    include: {
+      formModel: {
+        include: {
+          storageTable: true,
+          operations: true
+        }
+      }
+    }
+  },
+  operationModels: {
+    include: {
+      operationModel: {
+        include: {
+          formModel: true,
+          storageModel: true
+        }
+      }
+    }
+  }
+} as const;
+
 export default async function HomePage() {
-  const [storageModels, viewModels, formModels, operationModels] = await Promise.all([
+  const [storageModels, viewModels, formModels, operationModels, domainModels] = await Promise.all([
     prisma.dataStorageModel.findMany({
       include: {
         tables: {
@@ -49,6 +96,12 @@ export default async function HomePage() {
       orderBy: {
         createdAt: "desc"
       }
+    }),
+    prisma.dataDomainModel.findMany({
+      include: domainModelInclude,
+      orderBy: {
+        createdAt: "desc"
+      }
     })
   ]);
 
@@ -56,7 +109,8 @@ export default async function HomePage() {
     storageModels,
     viewModels,
     formModels,
-    operationModels
+    operationModels,
+    domainModels
   });
 
   return (
@@ -65,7 +119,7 @@ export default async function HomePage() {
         <header className="space-y-2">
           <h1 className="text-3xl font-bold">数据模型设计器</h1>
           <p className="text-muted-foreground">
-            统一管理数据存储、数据视图、数据表单与数据操作模型，支持基于真实数据库的自动化建模。
+            统一管理数据存储、数据视图、数据表单、数据操作与业务领域模型，支持基于真实数据库的自动化建模。
           </p>
         </header>
         <DashboardRoot initialData={initialData} />

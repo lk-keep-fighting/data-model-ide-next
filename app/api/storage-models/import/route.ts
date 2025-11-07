@@ -161,7 +161,8 @@ export async function POST(request: Request) {
       storageModels: [createdModel as StorageModelWithRelations],
       viewModels: [],
       formModels: [],
-      operationModels: []
+      operationModels: [],
+      domainModels: []
     });
 
     return NextResponse.json(serialized.storageModels[0]);

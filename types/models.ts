@@ -64,10 +64,37 @@ export interface OperationModel {
   formModel?: FormModel | null;
 }
 
+export interface DomainField {
+  key: string;
+  name: string;
+  type?: string;
+  required?: boolean;
+  description?: string | null;
+}
+
+export interface DomainSchema {
+  fields: DomainField[];
+}
+
+export interface DomainModel {
+  id: string;
+  name: string;
+  description?: string | null;
+  schema: DomainSchema | null;
+  fields: DomainField[];
+  storageTables: StorageTable[];
+  viewModels: ViewModel[];
+  formModels: FormModel[];
+  operationModels: OperationModel[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DashboardData {
   storageModels: StorageModel[];
   viewModels: ViewModel[];
   formModels: FormModel[];
   operationModels: OperationModel[];
+  domainModels: DomainModel[];
 }
 
