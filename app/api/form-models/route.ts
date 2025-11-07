@@ -38,7 +38,8 @@ export async function GET() {
     storageModels: [],
     viewModels: [],
     formModels: forms,
-    operationModels: []
+    operationModels: [],
+    domainModels: []
   });
 
   return NextResponse.json(payload.formModels);
@@ -74,7 +75,8 @@ export async function POST(request: Request) {
       storageModels: [],
       viewModels: [],
       formModels: [detail],
-      operationModels: []
+      operationModels: [],
+      domainModels: []
     });
 
     return NextResponse.json(payloadResponse.formModels[0], { status: 201 });
