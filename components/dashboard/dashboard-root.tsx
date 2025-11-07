@@ -456,6 +456,9 @@ function DashboardRoot({ initialData }: DashboardRootProps) {
       setIsCreatingForm(true);
       try {
         const schema = {
+          meta: {
+            usage: "submission"
+          },
           fields: activeFields
         };
         const response = await fetch("/api/form-models", {
