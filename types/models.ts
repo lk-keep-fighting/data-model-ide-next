@@ -71,11 +71,3 @@ export interface DashboardData {
   operationModels: OperationModel[];
 }
 
-export interface AdminTableModelLocator {
-  storageModelId: string;
-  storageTableId: string;
-  viewId: string;
-  filterFormIds?: string[];
-  submissionFormIds?: string[];
-  operationIds?: string[];
-}
